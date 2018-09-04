@@ -1,0 +1,97 @@
+= Packaging In Depth
+
+== Is your application suitable?
+
+Most graphical applications can be made into a Flatpak without modification, though creating a sandboxed Flatpak that prevents the application from doing arbitrary things to the user’s account is more likely to require code changes.
+
+Some things that could make an application not work well as a Flatpak:
+
+* If it installs system services or changes system configuration files
+* If it needs access to binaries or other files in `/usr` that can’t be bundled with the application
+
+== Picking an application ID
+To select an appropriate an xref:concepts.adoc#application_id[application ID]:
+
+* If the application already has a desktop file of this form, that is the application ID.
+* If the application exports any D-Bus services (Look for files in `/usr/share/dbus-1/services/` - though an application can export D-Bus services without installing a service file) then the prefix of the D-Bus name should match the application ID.
+* If the application is already packaged on https://flathub.org[Flathub] please use the same application ID.
+* Otherwise, you need to make up an application ID. This should be your best possible guess as to what the upstream would use - if they have their own domain name, that should be the basis, otherwise base it on the hosting - e.g. `org.github.<user/organization>.<Application>`. Note that the original idea of an application ID is that it is in a reversed name that is under your control, so if possible, please coordinate with the upstream, ask them if your choice is OK, and ask them to rename their desktop file and icon to match that.
+
+Applications can only export resources under their application ID, so the desktop file and icon for the application need the appropriate name. The best place to implement this is upstream. The second best place is in the Fedora application package. But if this isn’t possible, you can do this in your container.yaml. See the <<Renames>> section below.
+
+== Versioning
+Flatpaks in Fedora are different from packages in that there isn’t a separate application version for F28, F29, rawhide, etc. Instead there is a single version that is the latest stable version for all versions of Fedora.
+
+A flatpak targets a particular runtime. Your stable version should ideally target the runtime corresponding to the latest released version of Fedora. If the released upstream stable version of the application has dependencies that are not available in a released version of Fedora and that can’t be bundled in your application module (e.g. it requires a newer version of the C compiler) then it’s acceptable to use the next version of the Fedora runtime, but this should be an unusual case. Your application might be based on the flatpak-runtime:f28 module, for example.
+
+The module and container versions for your stable release should be in the master branch of your git repository, and the stream of the module will be the master stream.
+
+If you want to package unstable upstream releases, see the “Development Versions” section below.
+
+== container.yaml
+
+=== finish-args
+The flatpak/finish-args: section of your container.yaml determines what permissions the application will have.
+
+.Non-sandboxed application, application requires X, and accesses the network
+----
+flatpak:
+    finish-args: >
+        --share=network
+        --socket=x11
+        --filesystem=user
+----
+
+.Sandboxed application
+----
+flatpak:
+    finish-args: >
+        --socket=wayland
+        --socket=fallback-x11
+----
+
+.Non-sandboxed application, application has wayland support, and uses DConf
+----
+flatpak:
+    finish-args: >
+         --filesystem=host
+         --share=ipc
+          --socket=fallback-x11
+          --socket=wayland
+          --socket=session-bus
+          --filesystem=~/.config/dconf:ro
+          --filesystem=xdg-run/dconf
+          --talk-name=ca.desrt.dconf
+          --env=DCONF_USER_CONFIG_DIR=.config/dconf
+----
+
+See http://docs.flatpak.org/en/latest/sandbox-permissions-reference.html and the flatpak-build(1) manual page.
+
+=== Renames
+Many existing applications in Fedora do not have an application in standard form. You can add keys to your
+container.yaml to rename exported resources to match the application ID.
+
+....
+flatpak:
+    rename-desktop-file: eog.appdata.xml
+    rename-appdata-file: eog.desktop
+    rename-icon: eog
+....
+
+The preferred way, however, is to fix the application ID in the RPM packaging, or even better, upstream.
+The reason this is better is that the system can understand the relationship between the two applications,
+and won't show duplicate entries in GNOME Software or the installed application list.
+
+=== Other keys
+The complete list of supported keys from the Flatpak builder manifest file that you can add to the flatpak: section of container.yaml is:
+
+* `appstream-license`
+* `appstream-compose`
+* `copy-icon`
+* `desktop-file-name-prefix`
+* `desktop-file-name-suffix`
+* `rename-appdata-file`
+* `rename-desktop-file`
+* `rename-icon`
+
+See the flatpak-manifest(1) manual page for documentation.

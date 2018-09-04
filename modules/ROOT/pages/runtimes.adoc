@@ -1,0 +1,63 @@
+= Packaging Runtimes
+
+As we've seen, each Flatpak targets a particular runtime, which provides
+shared binaries, libraries, and data files, and is mounted at /usr when the
+Flatpak is run.
+
+All Flatpaks in Fedora target the `org.fedora.Platform` runtime. Using
+a single runtime simplifies maintenance and avoids users having to
+download multiple runtimes.  In general, you will not need to modify
+this runtime when creating an application, since any additional
+packages you need will be bundled with the application. However, if
+you find a bug in the runtime and want to help fix it, or want to help
+participate in maintainance of the Fedora runtimes, then it's useful
+to know how runtimes are built.
+
+In addition to the org.fedora.Platform, three other runtimes are built in
+Fedora infrastructure
+
+`org.fedoraproject.Sdk`::
+  This is a SDK that extends org.fedora.Platform with compilers and header
+  files to enable building applications against it using the flatpak-builder
+  tool.
+`org.fedoraproject.BasePlatform`::
+  This is a smaller runtime. It is similar to the upstream org.freedesktop
+  runtime. The idea of this runtime is that it establishes a package set
+  that can be carried over into an enterprise-linux runtime that will
+  have long-term support and stability.
+`org.fedoraproject.BaseSdk`::
+  The SDK corresponding to org.fedoraproject.BasePlatform
+
+Runtimes are defined in a similar way to Flatpaks. The content of the runtimes
+is defined in the https://src.fedoraproject.org/modules/flatpak-runtime[flatpak-runtime module].
+The different profiles of the module define the different
+runtimes.
+
+WARNING: the following describes the way things will be organized. Currently, only
+the main flatpak-runtime is built, and defined directly in
+https://src.fedoraproject.org/modules/flatpak-runtime[`modules/flaptak-runtime`]
+
+Then the runtimes are built into containers - but since
+there are multiple containers built for the same runtime, the
+simplification of having both the module and container definition in a
+single git repository doesn't work. Instead the container definitions
+are found in separate git repositories:
+https://src.fedoraproject.org/container/flatpak-runtime[`container/flatpak-runtime`].
+https://src.fedoraproject.org/container/flatpak-sdk[`container/flatpak-sdk`].
+https://src.fedoraproject.org/container/flatpak-base-runtime[`container/flatpak-base-runtime`].
+https://src.fedoraproject.org/container/flatpak-base-sdk[`container/flatpak-base-sdk`].
+These git repositories must be kept tightly in sync with the runtime module, but don't need
+to be modified very often.
+
+The package lists in `flatpak-runtime.yaml` are maintained with scripts that
+is also found in the flatpak-runtime module. The idea is that the contents of the
+runtime should be a superset of the `org.gnome.Platform` runtime, with the addition
+of libraries that are frequently used by popular non-GNOME applications, such as
+qt5 and SDL. For more information about the maintenance scripts, see the
+https://src.fedoraproject.org/modules/flatpak-runtime[README.md]
+in the module.
+
+The module definition for flatpak-runtime has an xmd section that includes
+extra information that is used at application build time to allow the resulting
+Flatpak to automatically depend on the right runtime and version without requiring
+it to be separately specified.

@@ -1,7 +1,8 @@
-= The Pizza Project
+= Flatpak
 
-The Pizza Project is a useful project with a very bad name — it helps you with writing some new documentation for Fedora.
+https://flatpak.org[Flatpaks] are a new way of deploying applications. If you have an application already packaged as a Fedora package, creating Flatpak offers a number of advantages:
 
-In fact, this is just a source template for a new piece of the Fedora Docs.
-
-image::pizza.png[Pizza]
+* The application can be safely updated without rebooting the system (you can update a package without rebooting your system using dnf from the command line, of course, but GNOME Software only offers updating applications as part of an offline system update.)
+* The application can seamlessly be installed on Fedora Silverblue
+* The Flatpak works across all supported Fedora versions - you don’t have to update trailing versions of Fedora for people to use the newest application version.
+* The Flatpak can be run by people running on other distributions

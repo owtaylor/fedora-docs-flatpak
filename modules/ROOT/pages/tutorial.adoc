@@ -1,0 +1,200 @@
+= Packaging Tutorial
+
+Creating a Flatpak of an application that is already packaged in Fedora involves two steps. First you need to create a module for the application. This module will be used to rebuild the application RPM and RPMs. Then you need to create a container out of the module. In the Fedora context, flatpaks are just another form of container, and are handled very similar to the Docker containers used for server applications.
+
+Just as for packages, the instructions for building modules and containers are stored in git on src.fedoraproject.org and builds are coordinated by koji.fedoraproject.org. The flatpak for a an application can be found on src.fedoraprojec.org in the repository `modules/<application>`; this git repository contains two files: `<application>.yaml`, which defines the contents of the module, and `container.yaml`, which defines how the module is turned into a Flatpak container.
+
+== Installing the necessary tools
+ $ dnf install flatpak-module-tools fedmod
+
+== Creating `<application>.yaml` and `container.yaml`
+ $ mkdir feedreader && cd feedreader
+ $ fedmod fetch-metadata
+ $ fedmod rpm2flatpak feedreader
+
+This generates templates versions of the two files. First we'll look at the module definition file:
+
+.feedreader.yaml
+[source,yaml]
+----
+---
+document: modulemd
+version: 2
+data:
+  summary: RSS desktop client <1>
+  description: >- <1>
+    FeedReader is a modern desktop application designed to complement existing web-based
+    RSS accounts. It combines all the advantages of web based services like synchronization
+    across all your devices with everything you expect from a modern desktop application.
+  license:
+    module:
+    - MIT
+  dependencies:
+  - buildrequires:
+      flatpak-runtime: [f29]
+    requires:
+      flatpak-runtime: [f29]
+  profiles: <2>
+    default:
+      rpms:
+      - feedreader
+  api: <3>
+    rpms:
+    - feedreader
+  components:
+    rpms:
+      feedreader: <4>
+        rationale: Package in api
+        buildorder: 10
+      gnome-online-accounts: <5>
+        rationale: Runtime dependencies
+      libgee: <5>
+        rationale: Runtime dependencies
+      libpeas: <5>
+        rationale: Runtime dependencies
+...
+----
+<1> Source and description come from RPM metadata
+<2> The default profile lists RPMs to be included along with their dependencies
+<3> The API section defines the public API for the module. It can be ignored.
+<4> The main package for the application
+<5> Further source rpms that will be rebuilt for bundling
+
+This could be used as-is. For more complex cases, it may be necessary to add additional
+`buildorder:` keys so that the bundle dependencies build in the correct order.
+
+Then we'll look at the container.yaml file. This will require more editing. Since
+feedreader can be found on https://flathub.org[Flathub], we can use
+https://github.com/flathub/org.gnome.FeedReader/blob/master/org.gnome.FeedReader.json[flatpak-builder manifest]
+as a source for the application ID and permissions.
+
+.container.yaml (as generated)
+[source,yaml]
+----
+compose:
+    modules:
+        - feedreader:master
+flatpak:
+    # Derived from the project's domain name
+    id: org.example.MyApp
+    branch: stable
+    # Binary to execute to run the app
+    command: feedreader
+    tags: []
+    # Not sandboxed. See 'man flatpak-build-finish'
+    finish-args: >
+        --filesystem=host
+        --share=ipc
+        --socket=x11
+        --socket=wayland
+        --socket=session-bus
+----
+
+.container.yaml  (edited)
+[source,yaml]
+----
+compose:
+    modules:
+        - feedreader:master
+flatpak:
+    id: org.gnome.FeedReader <1>
+    branch: stable
+    command: feedreader
+    tags: []
+    finish-args: > <2>
+        -socket=pulseaudio
+        --socket=x11
+        --share=ipc
+        --socket=wayland
+        --device=dri
+        --share=network
+        --filesystem=xdg-run/dconf --filesystem=~/.config/dconf:ro
+	--talk-name=ca.desrt.dconf --env=DCONF_USER_CONFIG_DIR=.config/dconf
+        --talk-name=org.gnome.OnlineAccounts
+	--own-name=org.gnome.FeedReader.ArticleView
+        --talk-name=org.freedesktop.Notifications
+        --talk-name=org.freedesktop.secrets
+    cleanup-commands: > <3>
+        glib-compile-schemas /app/share/glib-2.0/schemas
+
+----
+
+<1> Changed to application ID to match Flathub
+<2> Adjust finish-args - copy from Flathub flatpak-builder manifest. See xref:in-depth.adoc#_finish_args[finish-args] for more details
+<3> Add cleanup commands
+
+
+
+== Doing a local build
+ $ flatpak-module local-build --install
+
+This is a shortcut for three steps:
+
+ $ flatpak-module build-module
+ $ flatpak-module build-container --from-local
+ $ flatpak-module install <application>-master-<version>.oci.tar.gz
+
+If building the module succeeds but building the container fails, and you need to change container.yaml and try again, you can do:
+
+ $ flatpak-module build-container --from-local --install
+
+== Testing
+
+If installation succeeded, you can now do:
+
+ $ flatpak run org.gnome.FeedReader
+
+To try it out.
+
+== src.fedoraproject.org request
+Please request a new module as follows:
+
+  $ fedpkg request-repo --namespace=modules <application>
+
+**For now**: When that ticket has been handled, file an issue in
+https://pagure.io/releng as follows:
+
+....
+Please add <application> to the f29-flatpak tag.
+
+   $ koji add-pkg --owner=releng f29-flatpak <application>
+....
+
+(https://lists.fedorahosted.org/archives/list/devel@lists.fedoraproject.org/thread/ANZRNH75N7MHRO6VEUNT4WOMHO5PNXGW/[devel@lists.fedoraproject.org thread about automating])
+
+== Importing your module content
+Once your releng issue has been resolved
+
+ $ mv <application> <application>.old
+ $ fedpkg clone modules/<application>
+ $ cd <application>
+ $ cp ../application.old/{<application>.yaml,container.yaml} .
+ $ git add <application>.yaml container.yaml
+ $ git commit -m “Initial import”
+ $ git push origin master
+
+== Building in Koji
+
+First build the module
+
+ $ fedpkg module-build
+
+If that completes successfully, you can then do:
+
+$ fedpkg flatpak-build
+
+WARNING: https://pagure.io/rpkg/pull-request/361 - for now you can use `koji flatpak-build f28-flatpak-candidate git://pkgs.fedoraproject.org/modules/<application>#origin/master --git-branch=master`.
+
+== Testing the build
+Go to the Koji page of the successful Flatpak build, find the download link for the Image Archive and paste that into the command line:
+
+ $ flatpak-module install https://kojipkgs.fedoraproject.org/packages/<app>/master/…
+
+WARNING: Would be nice to have flatpak-module support to do this by NVR or just package name.  ‘install --koji <app>’
+
+== Creating an update
+WARNING: Not yet working
+
+Find the NVR of your flatpak build - if you don’t have it in your terminal scrollback go to https://koji.fedoraproject.org/koji/build and search for builds by your username. It will be something like: <code>myapplication-20180601144429.2</code>
+
+Go to https://bodhi.fedoraproject.org/updates/new and enter the flatpak NVR under Candidate Builds (ignore “Packages”). Enter text under “Update notes” like “Initial Flatpak of <application>”, and hit <Submit>.
