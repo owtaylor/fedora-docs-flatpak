@@ -2,7 +2,61 @@
 
 == Module build problems
 
+=== Files outside of `/app`
+The most common reason for a packaging failing to build is that some file in the
+package is installed with a hard-coded path of /usr rather than respecting the
+macros such as `%\{_prefix\}`, `%\{_libdir\}`, etc. This might require adjustment
+of the spec file, passing additional variables into the make command, or in rare
+cases, patching the Makefiles.
+
+=== Uncompressed manual pages
+Currently, the RPM scripts that compress manual pages don't compress manual pages
+in `/app`. So if an RPM has
+
+....
+%files
+[...]
+%{_mandir}/man1/<command>.1.gz
+....
+
+It will fail to build in a Flatpak module. The recommendation in the Fedora packaging
+guidelines is to have:
+....
+%{_mandir}/man1/<command>.1*
+....
+
+which is more robust against future changes to the RPM scripts to use different
+compression.
+
 == Container build problems
+
+=== Package installation failures
+During installation of packages to build a Flatpak container, the set of packages is
+restricted to packages in the runtime and packages built in your module. Other packages
+in Fedora will be ignored. If you see a message about missing dependencies that
+you know are in Fedora, this is because they are being ignored because of this
+restriction.
+
+`fedmod rpm2flatpak` should have added all necessary dependencies not
+in the runtime to your module. However, subsequent packaging changes
+might require updates to your module.
+
+You could also see failures if a package in the runtime grew a new dependency.and the
+runtime hasn't been updated. If the package with the dependency causing the dnf failure
+isn't part of your module, please bug an issue against
+https://bugzilla.redhat.com/enter_bug.cgi?product=Fedora%20Modules&component=flatpak-runtime[flatpak-runtime].
 
 == Problems running applications
 
+=== Missing file triggers
+At the moment, operations that are done via global Fedora file triggers, such as running
+`glib-compile-schemas` or `gtk-update-icon-cache` do not happen properly with a prefix
+of /app. It's necessary to manually do these actions out of the `cleanup-commands` section
+of `container.yaml`. For example:
+
+....
+flatpak:
+[...]
+    cleanup-commands: >
+        glib-compile-schemas /app/share/glib-2.0/schemas
+....
