@@ -2,19 +2,29 @@
 
 == Application ID
 Every application needs a unique application ID, based on a reversed domain name. For example `org.gnome.Maps`.
+All resources exported by the application must be prefixed by this identifier. This includes the
+https://standards.freedesktop.org/desktop-entry-spec/latest/[desktop file], the appdata file for the
+application, and any icons referenced by the desktop file.
+
 See xref:in-depth.adoc#_picking_an_application_id[Picking an application ID].
+
+== Appdata
+The appdata file for a Flatpak is used for displaying information about the application prior to
+installation. See https://fedoraproject.org/wiki/Packaging:AppData[Fedora Packaging Guidelines for AppData Files].
 
 == Runtimes and bundled libraries
 When a Flatpak is executed, the files that the application see come from two places:
 
  * The Flatpak _runtime_, mounted at `/usr`. This contains libraries and data files shared by all Fedora Flatpaks. There is one runtime version for each Fedora release.
- * The Flatpak _application_, mounted at `/app'. This contains the application code itself, but also contains any libraries that are bundled with the application. The application and libraries must be rebuilt with this prefix - this is done by including them in your module.
+ * The Flatpak _application_, mounted at `/app`. This contains the application code itself, but also contains any libraries that are bundled with the application. The application and libraries must be rebuilt with this prefix - this is done by including them in your module.
 
 == Modules
-Packaging flatpaks in Fedora makes use https://docs.fedoraproject.org/en-US/modularity/[Modularity]. The application and bundled libraries are built in a module - this gives a couple of advantages:
+Packaging flatpaks in Fedora makes use of https://docs.fedoraproject.org/en-US/modularity/[Modularity]. The application and bundled libraries are built in a module - this gives a couple of advantages:
 
  * The module has a different buildroot configuration with macros that result in RPMs in the module being built with a prefix of `/app`.
  * The application author is in control of the particular versions of libraries that are included. Even if your application is built on the f29 runtime, you can use libraries from a newer or older version of Fedora, if required by your application.
+
+Note that Flatpak modules will not work outside the Flatpak context, since they contain RPMs rebuilt with a prefix of `/app` with the same name as system ibraries - you cannot use `dnf module enable` to install them.
 
 == OCI Images
 For Fedora, Flatpak runtimes and applications are built as https://github.com/opencontainers/image-spec/blob/master/spec.md[OCI Images] and distributed via https://registry.fedoraproject.org. This allows Flatpaks to be handled in a very similar way to server side containers. (Flatpaks are also commonly distributed via https://ostree.readthedocs.io/en/latest/[ostree].)
