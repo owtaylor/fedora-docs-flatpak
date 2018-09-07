@@ -1,5 +1,5 @@
 site: 
-  title: Local Preview
+  title: Flatpak Packager Docs (Preview)
   start_page: flatpak::index
 content:
   sources:
