@@ -73,8 +73,8 @@ container.yaml to rename exported resources to match the application ID.
 
 ....
 flatpak:
-    rename-desktop-file: eog.appdata.xml
-    rename-appdata-file: eog.desktop
+    rename-appdata-file: eog.appdata.xml
+    rename-desktop-file: eog.desktop
     rename-icon: eog
 ....
 
