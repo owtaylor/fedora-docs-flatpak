@@ -9,6 +9,11 @@ macros such as `%\{_prefix\}`, `%\{_libdir\}`, etc. This might require adjustmen
 of the spec file, passing additional variables into the make command, or in rare
 cases, patching the Makefiles.
 
+If you hit such a problem, you can *temporarily* `dnf install flatpak-rpm-macros`, try
+rebuilding the package with `fedpkg local`, fix problems, then uninstall
+flatpak-rpm-macros. Leaving flatpak-rpm-macros installed will cause all packages
+you build locally to be built with _prefix=/app and not work.
+
 === Uncompressed manual pages
 Currently, the RPM scripts that compress manual pages don't compress manual pages
 in `/app`. So if an RPM has
